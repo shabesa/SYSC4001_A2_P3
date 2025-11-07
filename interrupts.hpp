@@ -439,3 +439,44 @@ std::string handle_interrupt(int device_num, int& current_time, std::vector<std:
 /*
 * Assignment 2 Functions
 */
+
+/**
+ *  Find the next available PID
+ *  pcb_queue: the current queue of PCBs
+ *  
+ *  returns the next available PID
+ */
+unsigned int get_next_pid(std::vector<PCB> pcb_queue) {
+    if (pcb_queue.empty()) return 1;
+    unsigned int max_pid = 0;
+    for (const auto& pcb : pcb_queue) {
+        if (pcb.PID > max_pid) max_pid = pcb.PID;
+    }
+    return max_pid + 1;
+}
+
+/**
+ *  Find the first available memory partition of required size
+ *  size: the size needed
+ *  pcb_queue: the current queue of PCBs
+ *  
+ *  returns partition number (1-6), or -1 if none available
+ */
+int find_available_partition(unsigned int size, std::vector<PCB> pcb_queue) {
+    for (size_t i = 0; i < 6; i++) {
+        if (memory[i].size >= size) {
+            // Check if partition is free (not in use by any PCB)
+            bool partition_free = true;
+            for (const auto& pcb : pcb_queue) {
+                if (pcb.partition_number == (int)(i + 1)) {
+                    partition_free = false;
+                    break;
+                }
+            }
+            if (partition_free) {
+                return i + 1;  // Return partition number (1-indexed)
+            }
+        }
+    }
+    return -1;  // No available partition
+}
