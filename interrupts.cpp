@@ -21,18 +21,9 @@ std::tuple<std::string, std::string, int> simulate_trace(std::vector<std::string
         auto [activity, duration_intr, program_name] = parse_trace(trace);
 
         if(activity == "CPU") { //As per Assignment 1
-            execution += std::to_string(current_time) + ", " + std::to_string(duration_intr) + ", CPU Burst\n";
-            current_time += duration_intr;
+            execution += simulate_cpu(duration_intr, current_time);
         } else if(activity == "SYSCALL") { //As per Assignment 1
-            auto [intr, time] = intr_boilerplate(current_time, duration_intr, 10, vectors);
-            execution += intr;
-            current_time = time;
-
-            execution += std::to_string(current_time) + ", " + std::to_string(delays[duration_intr]) + ", SYSCALL ISR (ADD STEPS HERE)\n";
-            current_time += delays[duration_intr];
-
-            execution +=  std::to_string(current_time) + ", 1, IRET\n";
-            current_time += 1;
+            execution += handle_interrupt(0, current_time, vectors, delays, "SYSCALL ISR");
         } else if(activity == "END_IO") {
             auto [intr, time] = intr_boilerplate(current_time, duration_intr, 10, vectors);
             current_time = time;

@@ -330,7 +330,7 @@ unsigned int get_size(std::string name, std::vector<external_file> external_file
 #endif
 
 /*
-* Assingment 1 Functions
+* Assignment 1 Functions
 */
 
 /*
@@ -435,3 +435,7 @@ std::string handle_interrupt(int device_num, int& current_time, std::vector<std:
     return result;
 
 }
+
+/*
+* Assignment 2 Functions
+*/
