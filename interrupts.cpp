@@ -40,15 +40,23 @@ std::tuple<std::string, std::string, int> simulate_trace(std::vector<std::string
             current_time = time;
 
             ///////////////////////////////////////////////////////////////////////////////////////////
-            //Add your FORK output here
+            //FORK implementation
             
-            unsigned int child_pid = get_next_pid(wait_queue);
+            // Count PIDs including current process
+            unsigned int child_pid = 1;
+            for (const auto& pcb : wait_queue) {
+                if (pcb.PID >= child_pid) child_pid = pcb.PID + 1;
+            }
+            if (current.PID >= child_pid) child_pid = current.PID + 1;
+            
             int child_partition = find_available_partition(current.size, wait_queue);
 
             if(child_partition == -1) {
                 execution += std::to_string(current_time) + ", FORK ERROR: No available partition\n";
             } else {
-                PCB child(child_pid, current.PID, program_name, current.size, child_partition);
+
+                // Create child PCB with SAME program name as parent
+                PCB child(child_pid, current.PID, current.program_name, current.size, child_partition);
                 
                 execution += std::to_string(current_time) + ", " + std::to_string(duration_intr) + ", cloning the PCB\n";
                 memory[child_partition - 1].code = current.program_name;
@@ -58,30 +66,28 @@ std::tuple<std::string, std::string, int> simulate_trace(std::vector<std::string
                 execution += std::to_string(current_time) + ", 1, IRET\n";
                 current_time += 1;
 
-                wait_queue.push_back(child);
-
+                // Display status
                 system_status += "time: " + std::to_string(current_time) + "; current trace: FORK, " 
                         + std::to_string(duration_intr) + "\n";
                 system_status += "+------------------------------------------------------+\n";
                 system_status += "| PID |program name |partition number | size |   state |\n";
                 system_status += "+------------------------------------------------------+\n";
 
-                // Display child PCB (running)
-                system_status += "|   " + std::to_string(child_pid) + " |    " + current.program_name 
+                // Child
+                system_status += "|   " + std::to_string(child_pid) + " |    " + child.program_name 
                         + " |               " + std::to_string(child_partition) + " |    " 
-                        + std::to_string(current.size) + " | running |\n";
+                        + std::to_string(child.size) + " | running |\n";
 
+                // Current process (parent)
                 system_status += "|   " + std::to_string(current.PID) + " |    " + current.program_name 
                                 + " |               " + std::to_string(current.partition_number) + " |    " 
                                 + std::to_string(current.size) + " | waiting |\n";
 
-                // Display waiting queue PCBs
+                // Display other waiting queue PCBs
                 for (const auto& program : wait_queue) {
-                    if(program.PID != child_pid) {
-                        system_status += "|   " + std::to_string(program.PID) + " |    " + program.program_name 
-                                + " |               " + std::to_string(program.partition_number) + " |    " 
-                                + std::to_string(program.size) + " | waiting |\n";
-                    }
+                    system_status += "|   " + std::to_string(program.PID) + " |    " + program.program_name 
+                            + " |               " + std::to_string(program.partition_number) + " |    " 
+                            + std::to_string(program.size) + " | waiting |\n";
                 }
                 system_status += "+------------------------------------------------------+\n\n";
             }
@@ -126,7 +132,14 @@ std::tuple<std::string, std::string, int> simulate_trace(std::vector<std::string
             //With the child's trace, run the child (HINT: think recursion)
             
             if(child_partition != -1) {
-                auto [child_execution, child_status, new_time] = simulate_trace(child_trace, current_time, vectors, delays, external_files, wait_queue.back(), wait_queue);
+                // Create child PCB
+                PCB child(child_pid, current.PID, current.program_name, current.size, child_partition);
+                
+                // Pass current process in wait_queue for child's execution
+                std::vector<PCB> child_wait_queue = wait_queue;
+                child_wait_queue.push_back(current);
+                
+                auto [child_execution, child_status, new_time] = simulate_trace(child_trace, current_time, vectors, delays, external_files, child, child_wait_queue);
                 execution += child_execution;
                 system_status += child_status;
                 current_time = new_time;
@@ -142,33 +155,24 @@ std::tuple<std::string, std::string, int> simulate_trace(std::vector<std::string
             execution += intr;
 
             ///////////////////////////////////////////////////////////////////////////////////////////
-            //Add your EXEC output here
+            //EXEC implementation
             
-            int avail_exec_partition = -1;
             unsigned int exec_size = get_program_size(program_name, external_files);
 
             if (exec_size == 0) {
                 execution += std::to_string(current_time) + ", EXEC ERROR: Program not found\n";
             } else {
-                avail_exec_partition = find_available_partition(exec_size, wait_queue);
+                int avail_exec_partition = find_available_partition(exec_size, wait_queue);
 
                 if (avail_exec_partition == -1) {
                     execution += std::to_string(current_time) + ", EXEC ERROR: No available partition\n";
                 } else {
-
-                    PCB exec_pcb(current.PID, current.PPID, program_name, exec_size, avail_exec_partition);
-                    
-                    unsigned int parent_pid = current.PID;
-                    int parent_partition = current.partition_number;
-                    std::string parent_program_name = current.program_name;
-                    unsigned int parent_size = current.size;
-
-                    execution += std::to_string(current_time) + ", " + std::to_string(duration_intr) + ", Program is " 
-                                                                    + std::to_string(exec_size) + " Mb large\n";
+                    execution += std::to_string(current_time) + ", " + std::to_string(duration_intr) 
+                                + ", Program is " + std::to_string(exec_size) + " Mb large\n";
                     current_time += duration_intr;
 
-                    execution += std::to_string(current_time) + ", " + std::to_string(exec_size * 15) + ", loading program into memory\n";
-                    std::cout << "exec_size: " << exec_size << std::endl;
+                    execution += std::to_string(current_time) + ", " + std::to_string(exec_size * 15) 
+                                + ", loading program into memory\n";
                     current_time += (exec_size * 15);
 
                     execution += std::to_string(current_time) + ", 3, marking partition as occupied\n";
@@ -177,16 +181,38 @@ std::tuple<std::string, std::string, int> simulate_trace(std::vector<std::string
                     execution += std::to_string(current_time) + ", 6, updating PCB\n";
                     current_time += 6;
 
+                    // Free old partition and mark new partition
+                    memory[current.partition_number - 1].code = "empty";
                     memory[avail_exec_partition - 1].code = program_name;
 
                     execution += std::to_string(current_time) + ", 0, scheduler called\n";
                     execution += std::to_string(current_time) + ", 1, IRET\n";
                     current_time += 1;
 
+                    // OUTPUT STATUS HERE (before recursion)
+                    system_status += "time: " + std::to_string(current_time) + "; current trace: EXEC, " 
+                                    + std::to_string(duration_intr) + "\n";
+                    system_status += "+------------------------------------------------------+\n";
+                    system_status += "| PID |program name |partition number | size |   state |\n";
+                    system_status += "+------------------------------------------------------+\n";
+
+                    // Show new exec program as running
+                    system_status += "|   " + std::to_string(current.PID) + " |    " + program_name 
+                            + " |               " + std::to_string(avail_exec_partition) + " |    " 
+                            + std::to_string(exec_size) + " | running |\n";
+
+                    // Show waiting processes
+                    for (const auto& pcb : wait_queue) {
+                        system_status += "|   " + std::to_string(pcb.PID) + " |    " + pcb.program_name 
+                                + " |               " + std::to_string(pcb.partition_number) + " |    " 
+                                + std::to_string(pcb.size) + " | waiting |\n";
+                    }
+                    system_status += "+------------------------------------------------------+\n\n";
+
                     ///////////////////////////////////////////////////////////////////////////////////////////
 
+                    // Load exec trace file
                     std::ifstream exec_trace_file(program_name + ".txt");
-
                     std::vector<std::string> exec_traces;
                     std::string exec_trace;
                     while(std::getline(exec_trace_file, exec_trace)) {
@@ -196,35 +222,25 @@ std::tuple<std::string, std::string, int> simulate_trace(std::vector<std::string
                     ///////////////////////////////////////////////////////////////////////////////////////////
                     //With the exec's trace (i.e. trace of external program), run the exec (HINT: think recursion)
 
-                    if(exec_size != 0 && avail_exec_partition != -1) {
-                        PCB exec_pcb(current.PID, current.PPID, program_name, exec_size, avail_exec_partition);
-                        
-                        auto [exec_execution, exec_status, exec_time] = simulate_trace(exec_traces, current_time, vectors, delays, external_files, exec_pcb, wait_queue);
-                        execution += exec_execution;
-                        system_status += exec_status;
-                        current_time = exec_time;
-                        
-                        memory[avail_exec_partition - 1].code = "empty";
+                    // Run exec with updated PCB
+                    PCB exec_pcb(current.PID, current.PPID, program_name, exec_size, avail_exec_partition);
+                    
+                    // Remove current process from wait_queue
+                    std::vector<PCB> exec_wait_queue;
+                    for (const auto& pcb : wait_queue) {
+                        if (pcb.PID != current.PID) {
+                            exec_wait_queue.push_back(pcb);
+                        }
                     }
+                    
+                    auto [exec_execution, exec_status, exec_time] = simulate_trace(exec_traces, current_time, vectors, delays, external_files, exec_pcb, exec_wait_queue);
+                    execution += exec_execution;
+                    system_status += exec_status;
+                    current_time = exec_time;
+                    
+                    memory[avail_exec_partition - 1].code = "empty";
 
-                    // Output status AFTER recursion (show running program + parent if exists)
-                    system_status += "time: " + std::to_string(current_time) + "; current trace: EXEC, " + std::to_string(duration_intr) + "\n";
-                    system_status += "+------------------------------------------------------+\n";
-                    system_status += "| PID |program name |partition number | size |   state |\n";
-                    system_status += "+------------------------------------------------------+\n";
-
-                    // Show running program
-                    system_status += "|   " + std::to_string(exec_pcb.PID) + " |    " + program_name + " |               " 
-                            + std::to_string(avail_exec_partition) + " |    " + std::to_string(exec_size) + " | running |\n";
-
-                    // Show parent if exists (not in wait_queue, but we know it's there from PPID)
-                    if(current.PPID != -1) {
-                        system_status += "|   " + std::to_string(current.PPID) + " |    " + "init" 
-                                + " |               " + std::to_string(6) + " |    " 
-                                + std::to_string(1) + " | waiting |\n";
-                    }
-
-                    system_status += "+------------------------------------------------------+\n\n";
+                    ///////////////////////////////////////////////////////////////////////////////////////////
                 }
             }
 
